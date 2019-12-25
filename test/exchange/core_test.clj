@@ -8,6 +8,15 @@
     :sell
     :buy))
 
+(defn remove-once [pred coll]
+  ((fn inner [coll]
+     (lazy-seq
+       (when-let [[x & xs] (seq coll)]
+         (if (pred x)
+           xs
+           (cons x (inner xs))))))
+   coll))
+
 (defn execute-order [order-type size price order-book]
   (let [orders (get order-book order-type)
         other-orders (get order-book (other-order order-type))
@@ -19,8 +28,8 @@
             (prn order-type size order-book)
             (hash-map order-type orders
                       (other-order order-type)
-                      (remove #(and (= (:price %) price)
-                                    (= (:size %) size)) other-orders)))
+                      (remove-once #(and (= (:price %) price)
+                                         (= (:size %) size)) other-orders)))
           :else (assoc order-book
                   order-type
                   (conj orders {:size  size
@@ -62,4 +71,16 @@
             (execute-order :buy 1 100 order-book)
             {:buy  []
              :sell []}))))
+
+  (testing "trade with history"
+    (let [order-book {:buy  []
+                      :sell [{:size  1
+                              :price 100}
+                             {:size  1
+                              :price 100}]}]
+      (is (=
+            (execute-order :buy 1 100 order-book)
+            {:buy  []
+             :sell [{:size  1
+                     :price 100}]}))))
   )
