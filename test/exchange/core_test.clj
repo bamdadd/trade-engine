@@ -77,4 +77,15 @@
             {:buy  []
              :sell [{:size  0.5
                      :price 100}]}))))
+
+  (testing "trade with threading"
+    (let [order-book {:buy  []
+                      :sell []}]
+      (is (=
+            (->> order-book
+                 (execute-order :buy 1 100)
+                 (execute-order :sell 1 100)
+                 )
+            {:buy  []
+             :sell []}))))
   )
