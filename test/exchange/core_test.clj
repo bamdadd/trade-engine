@@ -3,7 +3,9 @@
             [clojure.set :refer [select]]
             [exchange.core :refer :all]))
 
-(defn other-order [order]
+;TODO: add account
+
+(defn opposite-order [order]
   (if (= order :buy)
     :sell
     :buy))
@@ -19,21 +21,41 @@
 
 (defn execute-order [order-type size price order-book]
   (let [orders (get order-book order-type)
-        other-orders (get order-book (other-order order-type))
-        top-other-order (first (filter #(= (:price %) price) other-orders))
-        _ (prn top-other-order)
+        opposite-orders (get order-book (opposite-order order-type))
+        top-other-order (first (filter #(= (:price %) price) opposite-orders))
+        ;_ (prn top-other-order)
         ]
-    (cond (= (:size top-other-order) size)
-          (do
-            (prn order-type size order-book)
-            (hash-map order-type orders
-                      (other-order order-type)
-                      (remove-once #(and (= (:price %) price)
-                                         (= (:size %) size)) other-orders)))
-          :else (assoc order-book
-                  order-type
-                  (conj orders {:size  size
-                                :price price})))
+    (cond
+      (and
+        (contains? top-other-order :size)
+        (= (:size top-other-order) size))
+      (do
+        (println "Trade" order-type size price)
+        (hash-map order-type orders
+                  (opposite-order order-type)
+                  (remove-once #(and (= (:price %) price)
+                                     (= (:size %) size)) opposite-orders)))
+
+      (and
+        (contains? top-other-order :size)
+        (< size (:size top-other-order))
+        (= price (:price top-other-order)))
+      (let [matched-item
+            (first (filter #(= (:price %) price) opposite-orders))
+            remaining-items
+            (remove-once #(and (= (:price %) price)) opposite-orders)
+            remaining-size (- (:size matched-item) size)
+            new-item {:size remaining-size :price price}
+            ]
+        (println "partial trade" order-type size price)
+        (hash-map order-type orders
+                  (opposite-order order-type)
+                  (conj remaining-items new-item)))
+
+      :else (assoc order-book
+              order-type
+              (conj orders {:size  size
+                            :price price})))
     ))
 
 (deftest order-book-test
@@ -82,5 +104,19 @@
             (execute-order :buy 1 100 order-book)
             {:buy  []
              :sell [{:size  1
+                     :price 100}]}))))
+
+  (testing "trade smaller"
+    (let [order-book {:buy  []
+                      :sell [{:size  1
+                              :price 100}
+                             {:size  1
+                              :price 100}]}]
+      (is (=
+            (execute-order :buy 0.5 100 order-book)
+            {:buy  []
+             :sell [{:size  0.5
+                     :price 100}
+                    {:size  1
                      :price 100}]}))))
   )
