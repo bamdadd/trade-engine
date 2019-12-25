@@ -1,14 +1,28 @@
-# exchange
+# Trade Engine for an exchange
 
-A Clojure library designed to ... well, that part is up to you.
+Trade engine
 
 ## Usage
 
-FIXME
+```!clojure
+(exchange.trade-engine/execute-order :buy 0.5 100 
+    {:buy  []
+                          :sell [{:size  1
+                                  :price 100}
+                                 {:size  1
+                                  :price 100}]}
+
+(exchange.trade-engine/execute-order :sell 0.5 100 
+    {:buy  []
+                          :sell [{:size  1
+                                  :price 100}
+                                 {:size  1
+                                  :price 100}]}
+```
 
 ## License
 
-Copyright © 2019 FIXME
+Copyright © 2019 Bamdad Dashtban
 
 This program and the accompanying materials are made available under the
 terms of the Eclipse Public License 2.0 which is available at
