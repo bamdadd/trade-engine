@@ -1,6 +1,7 @@
 (ns exchange.trade-engine)
 
 ;TODO: add trades-book
+;TODO: add transaction id
 
 (defn -opposite-order [order]
   (if (= order :buy)
@@ -38,7 +39,12 @@
               (-opposite-order order-type)
               (conj remaining-items new-item))))
 
-(defn execute-order [order-type size price account order-book]
+(defn execute-order [order-type size price account {:keys [order-book trade-book]
+                                                    :as   books
+                                                    :or   {order-book {:buy  []
+                                                                       :sell []}
+                                                           trade-book []}
+                                                    }]
   (let [orders (get order-book order-type)
         opposite-orders (get order-book (-opposite-order order-type))
         top-other-order (first (filter #(= (:price %) price) opposite-orders))
@@ -49,9 +55,10 @@
         (= (:size top-other-order) size))
       (do
         (println "Trade" order-type size price)
-        (hash-map order-type orders
-                  (-opposite-order order-type)
-                  (-process-equal price size opposite-orders)))
+        (merge books {:order-book
+                      (hash-map order-type orders
+                                (-opposite-order order-type)
+                                (-process-equal price size opposite-orders))}))
       ;smaller
       (and
         (contains? top-other-order :size)
@@ -59,7 +66,8 @@
         (= price (:price top-other-order)))
       (do
         (println "partial trade smaller" order-type size price)
-        (-process-smaller order-type size price orders account opposite-orders))
+        (merge books {:order-book
+                      (-process-smaller order-type size price orders account opposite-orders)}))
       ;bigger
       (and
         (contains? top-other-order :size)
@@ -72,12 +80,22 @@
                        (- size (:size top-other-order))
                        price
                        account
-                       (merge order-book
-                              (hash-map (-opposite-order order-type) remaining-items)))
+                       (merge books
+                              {
+                               :order-book
+                               (merge order-book
+                                      (hash-map
+                                        (-opposite-order order-type) remaining-items))}))
         )
       ; equal
-      :else (assoc order-book
-              order-type
-              (conj orders {:size    size
-                            :price   price
-                            :account account})))))
+      :else
+      (do
+        (merge books
+               {:trade-book
+                []
+                :order-book
+                (assoc order-book
+                  order-type
+                  (conj orders {:size    size
+                                :price   price
+                                :account account}))})))))
