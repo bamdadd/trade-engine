@@ -1,6 +1,6 @@
 (ns exchange.trade-engine)
 
-;TODO: add account
+;TODO: add trades-book
 
 (defn -opposite-order [order]
   (if (= order :buy)
@@ -20,19 +20,26 @@
   (-remove-once #(and (= (:price %) price)
                       (= (:size %) size)) opposite-orders))
 
-(defn -process-smaller [order-type size price orders opposite-orders]
+(defn -process-smaller [order-type size price orders account opposite-orders]
   (let [matched-item
         (first (filter #(= (:price %) price) opposite-orders))
         remaining-items
+
         (-remove-once #(and (= (:price %) price)) opposite-orders)
-        remaining-size (- (:size matched-item) size)
-        new-item {:size remaining-size :price price}
+        trade-account (if (neg? (- (:size matched-item)))
+                        (:account matched-item)
+                        account)
+        _ (prn size account trade-account matched-item)
+        remaining-size (Math/abs (- (:size matched-item) size))
+        new-item {:size    remaining-size
+                  :price   price
+                  :account trade-account}
         ]
     (hash-map order-type orders
               (-opposite-order order-type)
               (conj remaining-items new-item))))
 
-(defn execute-order [order-type size price order-book]
+(defn execute-order [order-type size price account order-book]
   (let [orders (get order-book order-type)
         opposite-orders (get order-book (-opposite-order order-type))
         top-other-order (first (filter #(= (:price %) price) opposite-orders))
@@ -53,7 +60,7 @@
         (= price (:price top-other-order)))
       (do
         (println "partial trade smaller" order-type size price)
-        (-process-smaller order-type size price orders opposite-orders))
+        (-process-smaller order-type size price orders account opposite-orders))
       ;bigger
       (and
         (contains? top-other-order :size)
@@ -61,10 +68,17 @@
         (= price (:price top-other-order)))
       (let [remaining-items
             (-remove-once #(and (= (:price %) price)) opposite-orders)]
-        (println "partial trade bigger" order-type size price)
-        (-process-smaller order-type (- size (:size top-other-order)) price orders remaining-items))
-
+        (println "partial trade bigger" order-type size price account)
+        (execute-order order-type
+                       (- size (:size top-other-order))
+                       price
+                       account
+                       (merge order-book
+                              (hash-map (-opposite-order order-type) remaining-items)))
+        )
+      ; equal
       :else (assoc order-book
               order-type
-              (conj orders {:size  size
-                            :price price})))))
+              (conj orders {:size    size
+                            :price   price
+                            :account account})))))
