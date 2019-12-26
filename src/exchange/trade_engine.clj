@@ -29,7 +29,6 @@
         trade-account (if (neg? (- (:size matched-item)))
                         (:account matched-item)
                         account)
-        _ (prn size account trade-account matched-item)
         remaining-size (Math/abs (- (:size matched-item) size))
         new-item {:size    remaining-size
                   :price   price
